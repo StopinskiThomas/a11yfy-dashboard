@@ -97,6 +97,9 @@ app.post('/api/sites', (req, res) => {
   const sql = 'INSERT INTO sites (url, name, schedule) VALUES (?, ?, ?)';
   db.run(sql, [url, name || url, schedule || 'off'], function(err) {
     if (err) {
+      if (err.message.includes('UNIQUE constraint failed')) {
+        return res.status(409).json({ error: 'This URL is already being monitored.' });
+      }
       return res.status(500).json({ error: err.message });
     }
     res.json({ id: this.lastID, url, name, schedule });

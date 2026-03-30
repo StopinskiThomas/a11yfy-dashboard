@@ -126,15 +126,26 @@ th {
     color: var(--primary-color);
 }
 
-.sr-only {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    padding: 0;
-    margin: -1px;
-    overflow: hidden;
-    clip: rect(0,0,0,0);
-    border: 0;
+#status-message {
+    padding: 1rem;
+    margin: 1rem 0;
+    border-radius: 4px;
+    font-weight: bold;
+}
+#status-message.error {
+    background-color: #fce4e4;
+    color: var(--error-color);
+    border: 1px solid var(--error-color);
+}
+#status-message.success {
+    background-color: #e8f5e9;
+    color: var(--success-color);
+    border: 1px solid var(--success-color);
+}
+#status-message.info {
+    background-color: #e3f2fd;
+    color: var(--notice-color);
+    border: 1px solid var(--notice-color);
 }
 
 .issue-item {

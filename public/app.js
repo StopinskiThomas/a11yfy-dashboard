@@ -16,7 +16,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const sites = await response.json();
             displaySites(sites);
         } catch (error) {
-            updateStatus('Error fetching sites: ' + error.message);
+            updateStatus('Error fetching sites: ' + error.message, 'error');
         }
     }
 
@@ -79,15 +79,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 body: JSON.stringify(data)
             });
             if (response.ok) {
-                updateStatus(`Site "${data.name}" added successfully.`);
+                updateStatus(`Site "${data.name}" added successfully.`, 'success');
                 siteForm.reset();
                 fetchSites();
             } else {
                 const err = await response.json();
-                updateStatus('Error: ' + err.error);
+                updateStatus('Error: ' + err.error, 'error');
             }
         } catch (error) {
-            updateStatus('Error adding site: ' + error.message);
+            updateStatus('Error adding site: ' + error.message, 'error');
         }
     });
 
@@ -99,30 +99,30 @@ document.addEventListener('DOMContentLoaded', () => {
                 body: JSON.stringify({ schedule })
             });
             if (response.ok) {
-                updateStatus('Schedule updated.');
+                updateStatus('Schedule updated.', 'success');
             } else {
                 const err = await response.json();
-                updateStatus('Update failed: ' + err.error);
+                updateStatus('Update failed: ' + err.error, 'error');
             }
         } catch (error) {
-            updateStatus('Error updating schedule: ' + error.message);
+            updateStatus('Error updating schedule: ' + error.message, 'error');
         }
     }
 
     // Run scan
     async function runScan(id) {
-        updateStatus('Scanning started... please wait.');
+        updateStatus('Scanning started... please wait.', 'info');
         try {
             const response = await fetch(`/api/scan/${id}`, { method: 'POST' });
             if (response.ok) {
-                updateStatus('Scan complete.');
+                updateStatus('Scan complete.', 'success');
                 fetchSites();
             } else {
                 const err = await response.json();
-                updateStatus('Scan failed: ' + err.error);
+                updateStatus('Scan failed: ' + err.error, 'error');
             }
         } catch (error) {
-            updateStatus('Error running scan: ' + error.message);
+            updateStatus('Error running scan: ' + error.message, 'error');
         }
     }
 
@@ -132,7 +132,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const response = await fetch(`/api/scans/${id}`);
             const scans = await response.json();
             if (scans.length === 0) {
-                updateStatus('No scans found for this site.');
+                updateStatus('No scans found for this site.', 'info');
                 return;
             }
             
@@ -178,7 +178,7 @@ document.addEventListener('DOMContentLoaded', () => {
             scanResults.hidden = false;
             backToList.focus();
         } catch (error) {
-            updateStatus('Error loading results: ' + error.message);
+            updateStatus('Error loading results: ' + error.message, 'error');
         }
     }
 
@@ -189,10 +189,20 @@ document.addEventListener('DOMContentLoaded', () => {
         fetchSites();
     });
 
-    function updateStatus(msg) {
+    function updateStatus(msg, type = 'info') {
         statusMessage.textContent = msg;
-        // Also log to console for debugging
-        console.log(msg);
+        statusMessage.className = type; // 'error', 'success', 'info'
+        
+        // Auto-hide success/info messages after 5 seconds
+        if (type !== 'error') {
+            setTimeout(() => {
+                if (statusMessage.textContent === msg) {
+                    statusMessage.textContent = '';
+                    statusMessage.className = 'sr-only';
+                }
+            }, 5000);
+        }
+        console.log(`[${type}] ${msg}`);
     }
 
     function escapeHtml(text) {
