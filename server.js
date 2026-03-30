@@ -56,7 +56,8 @@ app.post('/api/scan/:id', async (req, res) => {
       const results = await pa11y(site.url, {
         runner: 'axe',
         standard: 'WCAG2AA',
-        // Optional: you can add more axe rules for WCAG 2.2 if needed
+        includeWarnings: true,
+        includeNotices: true,
         chromeLaunchConfig: {
           executablePath: process.env.CHROME_PATH || null,
           args: ['--no-sandbox', '--disable-setuid-sandbox']

@@ -110,20 +110,32 @@ document.addEventListener('DOMContentLoaded', () => {
             const latestScan = scans[0];
             const issues = JSON.parse(latestScan.issues_json);
             
+            const counts = { error: 0, warning: 0, notice: 0 };
+            issues.forEach(i => {
+                if (i.type === 'error' || !i.type) counts.error++;
+                else if (i.type === 'warning') counts.warning++;
+                else if (i.type === 'notice') counts.notice++;
+            });
+
             currentSiteName.textContent = name;
             resultsSummary.innerHTML = `
-                <p><strong>Score:</strong> ${latestScan.score}/100</p>
-                <p><strong>Total Issues:</strong> ${issues.length}</p>
+                <div class="summary-grid" style="display: flex; gap: 1rem; margin-bottom: 1rem;">
+                    <p><strong>Score:</strong> <span class="score-badge ${latestScan.score >= 90 ? 'score-high' : (latestScan.score >= 70 ? 'score-medium' : 'score-low')}">${latestScan.score}</span>/100</p>
+                    <p><strong>Errors:</strong> ${counts.error}</p>
+                    <p><strong>Warnings:</strong> ${counts.warning}</p>
+                    <p><strong>Notices:</strong> ${counts.notice}</p>
+                </div>
                 <p><strong>Scan Date:</strong> ${new Date(latestScan.timestamp).toLocaleString()}</p>
             `;
             
             issuesList.innerHTML = '';
             issues.forEach(issue => {
+                const type = issue.type || 'error';
                 const div = document.createElement('div');
-                div.className = 'issue-item';
+                div.className = `issue-item ${type}`;
                 div.role = 'listitem';
                 div.innerHTML = `
-                    <h3>${issue.message}</h3>
+                    <h3><span class="type-badge type-${type}">${type}</span> ${issue.message}</h3>
                     <p><strong>Code:</strong> <code>${issue.code}</code></p>
                     <p><strong>Selector:</strong> <code>${issue.selector}</code></p>
                     <p><strong>Context:</strong></p>
