@@ -33,6 +33,13 @@ document.addEventListener('DOMContentLoaded', () => {
             tr.innerHTML = `
                 <td>${site.name}</td>
                 <td><a href="${site.url}" target="_blank">${site.url}</a></td>
+                <td>
+                    <select class="schedule-change" data-id="${site.id}">
+                        <option value="off" ${site.schedule === 'off' ? 'selected' : ''}>Off</option>
+                        <option value="hourly" ${site.schedule === 'hourly' ? 'selected' : ''}>Hourly</option>
+                        <option value="daily" ${site.schedule === 'daily' ? 'selected' : ''}>Daily</option>
+                    </select>
+                </td>
                 <td>${scoreDisplay}</td>
                 <td>${site.latest_scan ? new Date(site.latest_scan).toLocaleString() : 'Never'}</td>
                 <td>
@@ -43,12 +50,15 @@ document.addEventListener('DOMContentLoaded', () => {
             sitesList.appendChild(tr);
         });
 
-        // Add event listeners to buttons
+        // Add event listeners
         document.querySelectorAll('.scan-btn').forEach(btn => {
             btn.addEventListener('click', () => runScan(btn.dataset.id));
         });
         document.querySelectorAll('.view-btn').forEach(btn => {
             btn.addEventListener('click', () => viewResults(btn.dataset.id, btn.dataset.name));
+        });
+        document.querySelectorAll('.schedule-change').forEach(select => {
+            select.addEventListener('change', (e) => updateSchedule(select.dataset.id, e.target.value));
         });
     }
 
@@ -58,7 +68,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const formData = new FormData(siteForm);
         const data = {
             name: formData.get('name'),
-            url: formData.get('url')
+            url: formData.get('url'),
+            schedule: formData.get('schedule')
         };
 
         try {
@@ -79,6 +90,24 @@ document.addEventListener('DOMContentLoaded', () => {
             updateStatus('Error adding site: ' + error.message);
         }
     });
+
+    async function updateSchedule(id, schedule) {
+        try {
+            const response = await fetch(`/api/sites/${id}/schedule`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ schedule })
+            });
+            if (response.ok) {
+                updateStatus('Schedule updated.');
+            } else {
+                const err = await response.json();
+                updateStatus('Update failed: ' + err.error);
+            }
+        } catch (error) {
+            updateStatus('Error updating schedule: ' + error.message);
+        }
+    }
 
     // Run scan
     async function runScan(id) {

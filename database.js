@@ -11,7 +11,8 @@ const db = new sqlite3.Database(dbPath, (err) => {
       db.run(`CREATE TABLE IF NOT EXISTS sites (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         url TEXT NOT NULL UNIQUE,
-        name TEXT
+        name TEXT,
+        schedule TEXT DEFAULT 'off'
       )`);
 
       db.run(`CREATE TABLE IF NOT EXISTS scans (

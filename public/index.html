@@ -24,6 +24,14 @@
                     <label for="site-url">Site URL</label>
                     <input type="url" id="site-url" name="url" placeholder="https://example.com" required>
                 </div>
+                <div class="form-group">
+                    <label for="site-schedule">Schedule</label>
+                    <select id="site-schedule" name="schedule">
+                        <option value="off">Off</option>
+                        <option value="hourly">Hourly</option>
+                        <option value="daily">Daily</option>
+                    </select>
+                </div>
                 <button type="submit" id="add-button">Add Site</button>
             </form>
         </section>
@@ -37,6 +45,7 @@
                         <tr>
                             <th scope="col">Name</th>
                             <th scope="col">URL</th>
+                            <th scope="col">Schedule</th>
                             <th scope="col">Latest Score</th>
                             <th scope="col">Last Scan</th>
                             <th scope="col">Actions</th>
