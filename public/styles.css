@@ -148,6 +148,12 @@ th {
     border: 1px solid var(--notice-color);
 }
 
+.chart-container {
+    margin: 2rem 0;
+    height: 300px;
+    width: 100%;
+}
+
 .issue-item {
     border-left: 10px solid var(--error-color);
     padding: 1rem;

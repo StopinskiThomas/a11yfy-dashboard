@@ -8,6 +8,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const issuesList = document.getElementById('issues-list');
     const currentSiteName = document.getElementById('current-site-name');
     const resultsSummary = document.getElementById('results-summary');
+    let historyChart = null;
 
     // Fetch and display sites
     async function fetchSites() {
@@ -136,6 +137,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
             
+            renderChart(scans);
+
             const latestScan = scans[0];
             const issues = JSON.parse(latestScan.issues_json);
             
@@ -182,6 +185,81 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    function renderChart(scans) {
+        const ctx = document.getElementById('history-chart').getContext('2d');
+        const history = [...scans].reverse();
+        const labels = history.map(s => new Date(s.timestamp).toLocaleDateString() + ' ' + new Date(s.timestamp).toLocaleTimeString());
+        
+        const errorData = [];
+        const warningData = [];
+        const noticeData = [];
+
+        history.forEach(s => {
+            const issues = JSON.parse(s.issues_json);
+            let e = 0, w = 0, n = 0;
+            issues.forEach(i => {
+                if (i.type === 'error' || !i.type) e++;
+                else if (i.type === 'warning') w++;
+                else if (i.type === 'notice') n++;
+            });
+            errorData.push(e);
+            warningData.push(w);
+            noticeData.push(n);
+        });
+
+        if (historyChart) {
+            historyChart.destroy();
+        }
+
+        historyChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [
+                    {
+                        label: 'Errors',
+                        data: errorData,
+                        borderColor: '#c0392b',
+                        backgroundColor: 'rgba(192, 57, 43, 0.1)',
+                        fill: true,
+                        tension: 0.1
+                    },
+                    {
+                        label: 'Warnings',
+                        data: warningData,
+                        borderColor: '#f39c12',
+                        backgroundColor: 'rgba(243, 156, 18, 0.1)',
+                        fill: true,
+                        tension: 0.1
+                    },
+                    {
+                        label: 'Notices',
+                        data: noticeData,
+                        borderColor: '#2980b9',
+                        backgroundColor: 'rgba(41, 128, 185, 0.1)',
+                        fill: true,
+                        tension: 0.1
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        title: { display: true, text: 'Count' }
+                    },
+                    x: { display: false }
+                },
+                plugins: {
+                    legend: { position: 'top' },
+                    title: { display: true, text: 'A11y Issues Over Time' }
+                }
+            }
+        });
+    }
+
     backToList.addEventListener('click', () => {
         scanResults.hidden = true;
         monitoredSites.hidden = false;
@@ -191,9 +269,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function updateStatus(msg, type = 'info') {
         statusMessage.textContent = msg;
-        statusMessage.className = type; // 'error', 'success', 'info'
-        
-        // Auto-hide success/info messages after 5 seconds
+        statusMessage.className = type;
         if (type !== 'error') {
             setTimeout(() => {
                 if (statusMessage.textContent === msg) {
