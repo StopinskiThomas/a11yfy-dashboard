@@ -41,6 +41,14 @@ document.addEventListener('DOMContentLoaded', () => {
                         <option value="daily" ${site.schedule === 'daily' ? 'selected' : ''}>Daily</option>
                     </select>
                 </td>
+                <td>
+                    <select class="standard-change" data-id="${site.id}">
+                        <option value="WCAG21A" ${site.standard === 'WCAG21A' ? 'selected' : ''}>2.1 A</option>
+                        <option value="WCAG21AA" ${site.standard === 'WCAG21AA' ? 'selected' : ''}>2.1 AA</option>
+                        <option value="WCAG22AA" ${site.standard === 'WCAG22AA' ? 'selected' : ''}>2.2 AA</option>
+                        <option value="WCAG22AAA" ${site.standard === 'WCAG22AAA' ? 'selected' : ''}>2.2 AAA</option>
+                    </select>
+                </td>
                 <td>${scoreDisplay}</td>
                 <td>${site.latest_scan ? new Date(site.latest_scan).toLocaleString() : 'Never'}</td>
                 <td>
@@ -61,6 +69,9 @@ document.addEventListener('DOMContentLoaded', () => {
         document.querySelectorAll('.schedule-change').forEach(select => {
             select.addEventListener('change', (e) => updateSchedule(select.dataset.id, e.target.value));
         });
+        document.querySelectorAll('.standard-change').forEach(select => {
+            select.addEventListener('change', (e) => updateStandard(select.dataset.id, e.target.value));
+        });
     }
 
     // Add new site
@@ -70,7 +81,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const data = {
             name: formData.get('name'),
             url: formData.get('url'),
-            schedule: formData.get('schedule')
+            schedule: formData.get('schedule'),
+            standard: formData.get('standard')
         };
 
         try {
@@ -107,6 +119,24 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         } catch (error) {
             updateStatus('Error updating schedule: ' + error.message, 'error');
+        }
+    }
+
+    async function updateStandard(id, standard) {
+        try {
+            const response = await fetch(`/api/sites/${id}/standard`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ standard })
+            });
+            if (response.ok) {
+                updateStatus('Standard updated.', 'success');
+            } else {
+                const err = await response.json();
+                updateStatus('Update failed: ' + err.error, 'error');
+            }
+        } catch (error) {
+            updateStatus('Error updating standard: ' + error.message, 'error');
         }
     }
 

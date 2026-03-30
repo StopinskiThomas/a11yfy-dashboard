@@ -8,22 +8,39 @@ const cron = require('node-cron');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.use(cors());
-app.use(express.json());
-app.use(express.static(path.join(__dirname, 'public')));
+function getAxeTags(standard) {
+  // Map our standards to axe-core tags
+  const tags = ['wcag2a', 'wcag2aa']; // Always include base
+  
+  if (standard.includes('21')) {
+    tags.push('wcag21a', 'wcag21aa');
+  }
+  if (standard.includes('22')) {
+    tags.push('wcag21a', 'wcag21aa', 'wcag22aa');
+  }
+  if (standard.includes('AAA')) {
+    tags.push('wcag2aaa');
+  }
+  return tags;
+}
 
 async function runScan(siteId) {
   return new Promise((resolve, reject) => {
-    db.get('SELECT url FROM sites WHERE id = ?', [siteId], async (err, site) => {
+    db.get('SELECT url, standard FROM sites WHERE id = ?', [siteId], async (err, site) => {
       if (err || !site) {
         return reject(new Error('Site not found'));
       }
 
       try {
-        console.log(`Scanning: ${site.url}`);
+        console.log(`Scanning: ${site.url} with standard ${site.standard}`);
         const results = await pa11y(site.url, {
-          runner: 'axe',
-          standard: 'WCAG2AA',
+          runners: ['axe'],
+          axe: {
+            runOnly: {
+              type: 'tag',
+              values: getAxeTags(site.standard || 'WCAG2AA')
+            }
+          },
           includeWarnings: true,
           includeNotices: true,
           chromeLaunchConfig: {
@@ -72,6 +89,10 @@ cron.schedule('* * * * *', () => {
   });
 });
 
+app.use(cors());
+app.use(express.json());
+app.use(express.static(path.join(__dirname, 'public')));
+
 // API: List all monitored sites
 app.get('/api/sites', (req, res) => {
   const sql = `
@@ -90,19 +111,19 @@ app.get('/api/sites', (req, res) => {
 
 // API: Add a new site
 app.post('/api/sites', (req, res) => {
-  const { url, name, schedule } = req.body;
+  const { url, name, schedule, standard } = req.body;
   if (!url) {
     return res.status(400).json({ error: 'URL is required' });
   }
-  const sql = 'INSERT INTO sites (url, name, schedule) VALUES (?, ?, ?)';
-  db.run(sql, [url, name || url, schedule || 'off'], function(err) {
+  const sql = 'INSERT INTO sites (url, name, schedule, standard) VALUES (?, ?, ?, ?)';
+  db.run(sql, [url, name || url, schedule || 'off', standard || 'WCAG2AA'], function(err) {
     if (err) {
       if (err.message.includes('UNIQUE constraint failed')) {
         return res.status(409).json({ error: 'This URL is already being monitored.' });
       }
       return res.status(500).json({ error: err.message });
     }
-    res.json({ id: this.lastID, url, name, schedule });
+    res.json({ id: this.lastID, url, name, schedule, standard });
   });
 });
 
@@ -115,6 +136,18 @@ app.patch('/api/sites/:id/schedule', (req, res) => {
       return res.status(500).json({ error: err.message });
     }
     res.json({ success: true, schedule });
+  });
+});
+
+// API: Update standard
+app.patch('/api/sites/:id/standard', (req, res) => {
+  const { standard } = req.body;
+  const sql = 'UPDATE sites SET standard = ? WHERE id = ?';
+  db.run(sql, [standard, req.params.id], function(err) {
+    if (err) {
+      return res.status(500).json({ error: err.message });
+    }
+    res.json({ success: true, standard });
   });
 });
 

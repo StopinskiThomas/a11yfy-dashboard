@@ -12,7 +12,8 @@ const db = new sqlite3.Database(dbPath, (err) => {
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         url TEXT NOT NULL UNIQUE,
         name TEXT,
-        schedule TEXT DEFAULT 'off'
+        schedule TEXT DEFAULT 'off',
+        standard TEXT DEFAULT 'WCAG2AA'
       )`);
 
       db.run(`CREATE TABLE IF NOT EXISTS scans (

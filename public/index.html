@@ -33,6 +33,15 @@
                         <option value="daily">Daily</option>
                     </select>
                 </div>
+                <div class="form-group">
+                    <label for="site-standard">WCAG Standard</label>
+                    <select id="site-standard" name="standard">
+                        <option value="WCAG21A">2.1 A</option>
+                        <option value="WCAG21AA">2.1 AA</option>
+                        <option value="WCAG22AA">2.2 AA</option>
+                        <option value="WCAG22AAA">2.2 AAA</option>
+                    </select>
+                </div>
                 <button type="submit" id="add-button">Add Site</button>
             </form>
         </section>
@@ -47,6 +56,7 @@
                             <th scope="col">Name</th>
                             <th scope="col">URL</th>
                             <th scope="col">Schedule</th>
+                            <th scope="col">Standard</th>
                             <th scope="col">Latest Score</th>
                             <th scope="col">Last Scan</th>
                             <th scope="col">Actions</th>
