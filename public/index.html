@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>A11yFy - Accessibility Monitor</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <header>
+        <h1>A11yFy</h1>
+        <p>Monitor your website's accessibility with WCAG 2.2 standards.</p>
+    </header>
+
+    <main id="main-content" tabindex="-1">
+        <section id="add-site" aria-labelledby="add-site-heading">
+            <h2 id="add-site-heading">Add a New Site</h2>
+            <form id="site-form">
+                <div class="form-group">
+                    <label for="site-name">Site Name</label>
+                    <input type="text" id="site-name" name="name" placeholder="e.g. My Portfolio" required>
+                </div>
+                <div class="form-group">
+                    <label for="site-url">Site URL</label>
+                    <input type="url" id="site-url" name="url" placeholder="https://example.com" required>
+                </div>
+                <button type="submit" id="add-button">Add Site</button>
+            </form>
+        </section>
+
+        <section id="monitored-sites" aria-labelledby="sites-heading">
+            <h2 id="sites-heading">Monitored Sites</h2>
+            <div id="status-message" aria-live="polite" class="sr-only"></div>
+            <div class="table-container">
+                <table id="sites-table">
+                    <thead>
+                        <tr>
+                            <th scope="col">Name</th>
+                            <th scope="col">URL</th>
+                            <th scope="col">Latest Score</th>
+                            <th scope="col">Last Scan</th>
+                            <th scope="col">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="sites-list">
+                        <!-- Loaded dynamically -->
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <section id="scan-results" aria-labelledby="results-heading" hidden>
+            <h2 id="results-heading">Scan Results for <span id="current-site-name"></span></h2>
+            <button id="back-to-list">Back to List</button>
+            <div id="results-summary"></div>
+            <div id="issues-list" role="list">
+                <!-- Issues loaded dynamically -->
+            </div>
+        </section>
+    </main>
+
+    <footer>
+        <p>&copy; 2026 A11yFy. Built with WCAG 2.2 in mind.</p>
+    </footer>
+
+    <script src="app.js"></script>
+</body>
+</html>
