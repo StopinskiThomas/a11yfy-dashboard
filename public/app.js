@@ -10,6 +10,17 @@ document.addEventListener('DOMContentLoaded', () => {
     const resultsSummary = document.getElementById('results-summary');
     let historyChart = null;
 
+    const configureRules = document.getElementById('configure-rules');
+    const configSiteName = document.getElementById('config-site-name');
+    const rulesContainer = document.getElementById('rules-container');
+    const ruleSearch = document.getElementById('rule-search');
+    const saveRulesBtn = document.getElementById('save-rules');
+    const clearRulesBtn = document.getElementById('clear-rules');
+    const backFromRulesBtn = document.getElementById('back-from-rules');
+    
+    let currentConfigSiteId = null;
+    let allAvailableRules = [];
+
     // Fetch and display sites
     async function fetchSites() {
         try {
@@ -54,6 +65,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 <td>
                     <button class="scan-btn" data-id="${site.id}">Scan Now</button>
                     <button class="view-btn" data-id="${site.id}" data-name="${site.name}">View Results</button>
+                    <button class="config-btn" data-id="${site.id}" data-name="${site.name}">Configure Rules</button>
+                    <button class="delete-btn" data-id="${site.id}" data-name="${site.name}">Delete</button>
                 </td>
             `;
             sitesList.appendChild(tr);
@@ -66,6 +79,12 @@ document.addEventListener('DOMContentLoaded', () => {
         document.querySelectorAll('.view-btn').forEach(btn => {
             btn.addEventListener('click', () => viewResults(btn.dataset.id, btn.dataset.name));
         });
+        document.querySelectorAll('.config-btn').forEach(btn => {
+            btn.addEventListener('click', () => openRuleConfig(btn.dataset.id, btn.dataset.name));
+        });
+        document.querySelectorAll('.delete-btn').forEach(btn => {
+            btn.addEventListener('click', () => deleteSite(btn.dataset.id, btn.dataset.name));
+        });
         document.querySelectorAll('.schedule-change').forEach(select => {
             select.addEventListener('change', (e) => updateSchedule(select.dataset.id, e.target.value));
         });
@@ -74,7 +93,120 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Add new site
+    // Rule Configuration
+    async function openRuleConfig(id, name) {
+        currentConfigSiteId = id;
+        configSiteName.textContent = name;
+        updateStatus('Loading rules...', 'info');
+
+        try {
+            if (allAvailableRules.length === 0) {
+                const rulesRes = await fetch('/api/rules');
+                allAvailableRules = await rulesRes.json();
+            }
+
+            const siteRulesRes = await fetch(`/api/sites/${id}/rules`);
+            const siteRules = await siteRulesRes.json();
+            const enabledRuleIds = new Set(siteRules.filter(r => r.enabled).map(r => r.rule_id));
+
+            renderRulesList(enabledRuleIds);
+
+            monitoredSites.hidden = true;
+            document.getElementById('add-site').hidden = true;
+            configureRules.hidden = false;
+            ruleSearch.focus();
+        } catch (error) {
+            updateStatus('Error loading rules: ' + error.message, 'error');
+        }
+    }
+
+    function renderRulesList(enabledRuleIds) {
+        rulesContainer.innerHTML = '';
+        const filter = ruleSearch.value.toLowerCase();
+
+        allAvailableRules.forEach(rule => {
+            const matchesSearch = rule.ruleId.toLowerCase().includes(filter) || 
+                                rule.description.toLowerCase().includes(filter) ||
+                                rule.tags.some(t => t.toLowerCase().includes(filter));
+            
+            if (!matchesSearch) return;
+
+            const div = document.createElement('div');
+            div.className = 'rule-config-item';
+            const isChecked = enabledRuleIds.has(rule.ruleId);
+            
+            div.innerHTML = `
+                <input type="checkbox" id="rule-${rule.ruleId}" data-id="${rule.ruleId}" ${isChecked ? 'checked' : ''}>
+                <label for="rule-${rule.ruleId}">
+                    <strong>${rule.ruleId}</strong>: ${rule.description}
+                    <br>
+                    <small>Tags: ${rule.tags.join(', ')}</small>
+                </label>
+            `;
+            rulesContainer.appendChild(div);
+        });
+    }
+
+    ruleSearch.addEventListener('input', () => {
+        const enabledOnUI = new Set(
+            Array.from(document.querySelectorAll('#rules-container input[type="checkbox"]:checked'))
+                .map(cb => cb.dataset.id)
+        );
+        renderRulesList(enabledOnUI);
+    });
+
+    saveRulesBtn.addEventListener('click', async () => {
+        const enabledRuleIds = new Set(
+            Array.from(document.querySelectorAll('#rules-container input[type="checkbox"]:checked'))
+                .map(cb => cb.dataset.id)
+        );
+        
+        const payload = {
+            rules: Array.from(enabledRuleIds).map(id => ({ rule_id: id, enabled: true }))
+        };
+
+        try {
+            const response = await fetch(`/api/sites/${currentConfigSiteId}/rules`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            if (response.ok) {
+                updateStatus('Rules saved successfully.', 'success');
+            } else {
+                const err = await response.json();
+                updateStatus('Save failed: ' + err.error, 'error');
+            }
+        } catch (error) {
+            updateStatus('Error saving rules: ' + error.message, 'error');
+        }
+    });
+
+    clearRulesBtn.addEventListener('click', async () => {
+        if (!confirm('Clear all custom rules and use default WCAG tags?')) return;
+        try {
+            const response = await fetch(`/api/sites/${currentConfigSiteId}/rules`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ rules: [] })
+            });
+            if (response.ok) {
+                updateStatus('Rules reset to defaults.', 'success');
+                openRuleConfig(currentConfigSiteId, configSiteName.textContent);
+            }
+        } catch (error) {
+            updateStatus('Error resetting rules: ' + error.message, 'error');
+        }
+    });
+
+    backFromRulesBtn.addEventListener('click', () => {
+        configureRules.hidden = true;
+        monitoredSites.hidden = false;
+        document.getElementById('add-site').hidden = false;
+        fetchSites();
+    });
+
+    // Site Management
     siteForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         const formData = new FormData(siteForm);
@@ -140,7 +272,25 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // Run scan
+    async function deleteSite(id, name) {
+        if (!confirm(`Are you sure you want to delete "${name}"? All scan history will be lost.`)) {
+            return;
+        }
+        try {
+            const response = await fetch(`/api/sites/${id}`, { method: 'DELETE' });
+            if (response.ok) {
+                updateStatus(`Site "${name}" deleted.`, 'success');
+                fetchSites();
+            } else {
+                const err = await response.json();
+                updateStatus('Delete failed: ' + err.error, 'error');
+            }
+        } catch (error) {
+            updateStatus('Error deleting site: ' + error.message, 'error');
+        }
+    }
+
+    // Scanning
     async function runScan(id) {
         updateStatus('Scanning started... please wait.', 'info');
         try {
@@ -157,7 +307,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // View results
     async function viewResults(id, name) {
         try {
             const response = await fetch(`/api/scans/${id}`);
@@ -168,18 +317,44 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             
             renderChart(scans);
+            renderHistoryTable(scans, name);
 
             const latestScan = scans[0];
-            const issues = JSON.parse(latestScan.issues_json);
+            const previousScan = scans[1];
+            const latestIssues = JSON.parse(latestScan.issues_json);
+            const previousIssues = previousScan ? JSON.parse(previousScan.issues_json) : [];
             
+            // Helper to create a unique key for an issue
+            const issueKey = (i) => `${i.code}|${i.selector}|${i.context}`;
+            const previousKeys = new Set(previousIssues.map(issueKey));
+            const latestKeys = new Set(latestIssues.map(issueKey));
+
+            const newIssues = latestIssues.filter(i => !previousKeys.has(issueKey(i)));
+            const fixedIssues = previousIssues.filter(i => !latestKeys.has(issueKey(i)));
+            const ongoingIssues = latestIssues.filter(i => previousKeys.has(issueKey(i)));
+
             const counts = { error: 0, warning: 0, notice: 0 };
-            issues.forEach(i => {
+            latestIssues.forEach(i => {
                 if (i.type === 'error' || !i.type) counts.error++;
                 else if (i.type === 'warning') counts.warning++;
                 else if (i.type === 'notice') counts.notice++;
             });
 
             currentSiteName.textContent = name;
+            document.querySelectorAll('.current-site-name-placeholder').forEach(el => el.textContent = name);
+            
+            let diffHtml = '';
+            if (previousScan) {
+                diffHtml = `
+                    <div class="diff-summary" role="status">
+                        <span>Changes since last scan:</span>
+                        <span class="diff-new">${newIssues.length} New</span>
+                        <span class="diff-fixed">${fixedIssues.length} Fixed</span>
+                        <span class="diff-ongoing">${ongoingIssues.length} Ongoing</span>
+                    </div>
+                `;
+            }
+
             resultsSummary.innerHTML = `
                 <div class="summary-grid" style="display: flex; gap: 1rem; margin-bottom: 1rem;">
                     <p><strong>Score:</strong> <span class="score-badge ${latestScan.score >= 90 ? 'score-high' : (latestScan.score >= 70 ? 'score-medium' : 'score-low')}">${latestScan.score}</span>/100</p>
@@ -188,16 +363,24 @@ document.addEventListener('DOMContentLoaded', () => {
                     <p><strong>Notices:</strong> ${counts.notice}</p>
                 </div>
                 <p><strong>Scan Date:</strong> ${new Date(latestScan.timestamp).toLocaleString()}</p>
+                ${diffHtml}
             `;
             
             issuesList.innerHTML = '';
-            issues.forEach(issue => {
+            
+            // Display New and Ongoing Issues
+            latestIssues.forEach(issue => {
                 const type = issue.type || 'error';
+                const isNew = !previousKeys.has(issueKey(issue));
                 const div = document.createElement('div');
                 div.className = `issue-item ${type}`;
                 div.role = 'listitem';
                 div.innerHTML = `
-                    <h3><span class="type-badge type-${type}">${type}</span> ${issue.message}</h3>
+                    <h3>
+                        <span class="type-badge type-${type}">${type}</span> 
+                        ${issue.message}
+                        ${previousScan ? `<span class="diff-badge ${isNew ? 'diff-new' : 'diff-ongoing'}">${isNew ? 'New' : 'Ongoing'}</span>` : ''}
+                    </h3>
                     <p><strong>Code:</strong> <code>${issue.code}</code></p>
                     <p><strong>Selector:</strong> <code>${issue.selector}</code></p>
                     <p><strong>Context:</strong></p>
@@ -205,6 +388,32 @@ document.addEventListener('DOMContentLoaded', () => {
                 `;
                 issuesList.appendChild(div);
             });
+
+            // Display Fixed Issues (if any)
+            if (fixedIssues.length > 0) {
+                const fixedHeader = document.createElement('div');
+                fixedHeader.className = 'fixed-issues-section';
+                fixedHeader.innerHTML = `<h3>Resolved Issues (Fixed)</h3>`;
+                issuesList.appendChild(fixedHeader);
+
+                fixedIssues.forEach(issue => {
+                    const type = issue.type || 'error';
+                    const div = document.createElement('div');
+                    div.className = `issue-item ${type}`;
+                    div.style.opacity = '0.7'; // Fade out fixed issues
+                    div.role = 'listitem';
+                    div.innerHTML = `
+                        <h3>
+                            <span class="type-badge type-${type}">${type}</span> 
+                            ${issue.message}
+                            <span class="diff-badge diff-fixed">Fixed</span>
+                        </h3>
+                        <p><strong>Code:</strong> <code>${issue.code}</code></p>
+                        <p><strong>Selector:</strong> <code>${issue.selector}</code></p>
+                    `;
+                    issuesList.appendChild(div);
+                });
+            }
 
             monitoredSites.hidden = true;
             document.getElementById('add-site').hidden = true;
@@ -290,6 +499,30 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    function renderHistoryTable(scans, name) {
+        const historyBody = document.getElementById('history-body');
+        historyBody.innerHTML = '';
+        scans.forEach(s => {
+            const issues = JSON.parse(s.issues_json);
+            let e = 0, w = 0, n = 0;
+            issues.forEach(i => {
+                if (i.type === 'error' || !i.type) e++;
+                else if (i.type === 'warning') w++;
+                else if (i.type === 'notice') n++;
+            });
+
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>${new Date(s.timestamp).toLocaleString()}</td>
+                <td>${s.score}</td>
+                <td>${e}</td>
+                <td>${w}</td>
+                <td>${n}</td>
+            `;
+            historyBody.appendChild(tr);
+        });
+    }
+
     backToList.addEventListener('click', () => {
         scanResults.hidden = true;
         monitoredSites.hidden = false;
@@ -297,6 +530,7 @@ document.addEventListener('DOMContentLoaded', () => {
         fetchSites();
     });
 
+    // Utilities
     function updateStatus(msg, type = 'info') {
         statusMessage.textContent = msg;
         statusMessage.className = type;

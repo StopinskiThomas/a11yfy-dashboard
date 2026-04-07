@@ -24,6 +24,14 @@ const db = new sqlite3.Database(dbPath, (err) => {
         issues_json TEXT,
         FOREIGN KEY(site_id) REFERENCES sites(id)
       )`);
+
+      db.run(`CREATE TABLE IF NOT EXISTS site_rules (
+        site_id INTEGER,
+        rule_id TEXT,
+        enabled INTEGER DEFAULT 1,
+        PRIMARY KEY(site_id, rule_id),
+        FOREIGN KEY(site_id) REFERENCES sites(id)
+      )`);
     });
   }
 });

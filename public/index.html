@@ -69,12 +69,46 @@
             </div>
         </section>
 
+        <section id="configure-rules" aria-labelledby="rules-config-heading" hidden>
+            <h2 id="rules-config-heading">Configure Rules for <span id="config-site-name"></span></h2>
+            <p>Select which WCAG criteria to check. If none are selected, the default standard will be used.</p>
+            <div class="rules-actions">
+                <button id="save-rules">Save Rules</button>
+                <button id="clear-rules">Use Defaults</button>
+                <button id="back-from-rules">Back to List</button>
+            </div>
+            <div id="rules-filter-container">
+                <label for="rule-search">Search Rules:</label>
+                <input type="text" id="rule-search" placeholder="e.g. contrast or wcag2aa">
+            </div>
+            <div id="rules-container" role="group" aria-labelledby="rules-config-heading">
+                <!-- Rules loaded dynamically -->
+            </div>
+        </section>
+
         <section id="scan-results" aria-labelledby="results-heading" hidden>
             <h2 id="results-heading">Scan Results for <span id="current-site-name"></span></h2>
             <button id="back-to-list">Back to List</button>
             <div id="results-summary"></div>
             <div class="chart-container">
                 <canvas id="history-chart"></canvas>
+            </div>
+            <div id="history-table-container" class="table-container">
+                <table id="history-table">
+                    <caption>Scan History for <span class="current-site-name-placeholder"></span></caption>
+                    <thead>
+                        <tr>
+                            <th scope="col">Date</th>
+                            <th scope="col">Score</th>
+                            <th scope="col">Errors</th>
+                            <th scope="col">Warnings</th>
+                            <th scope="col">Notices</th>
+                        </tr>
+                    </thead>
+                    <tbody id="history-body">
+                        <!-- History rows loaded dynamically -->
+                    </tbody>
+                </table>
             </div>
             <div id="issues-list" role="list">
                 <!-- Issues loaded dynamically -->

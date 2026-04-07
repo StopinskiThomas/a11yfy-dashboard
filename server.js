@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const pa11y = require('pa11y');
+const axe = require('axe-core');
 const db = require('./database');
 const path = require('path');
 const cron = require('node-cron');
@@ -8,24 +9,45 @@ const cron = require('node-cron');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Enable foreign keys in SQLite
+db.run('PRAGMA foreign_keys = ON');
+
 function getAxeTags(standard) {
   // Map our standards to axe-core tags
-  const tags = ['wcag2a', 'wcag2aa']; // Always include base
+  const tags = ['wcag2a']; // Level A is always the base
   
-  if (standard.includes('21')) {
-    tags.push('wcag21a', 'wcag21aa');
-  }
-  if (standard.includes('22')) {
-    tags.push('wcag21a', 'wcag21aa', 'wcag22aa');
+  if (standard.includes('AA')) {
+    tags.push('wcag2aa');
   }
   if (standard.includes('AAA')) {
-    tags.push('wcag2aaa');
+    tags.push('wcag2aa', 'wcag2aaa');
   }
-  return tags;
+  
+  if (standard.includes('21')) {
+    tags.push('wcag21a');
+    if (standard.includes('AA')) tags.push('wcag21aa');
+  }
+  
+  if (standard.includes('22')) {
+    tags.push('wcag21a', 'wcag22aa'); // Axe-core 4.8+ supports wcag22aa
+    if (standard.includes('AA')) tags.push('wcag21aa');
+  }
+  
+  // Remove duplicates
+  return [...new Set(tags)];
+}
+
+async function getSiteRules(siteId) {
+  return new Promise((resolve, reject) => {
+    db.all('SELECT rule_id, enabled FROM site_rules WHERE site_id = ?', [siteId], (err, rows) => {
+      if (err) return reject(err);
+      resolve(rows);
+    });
+  });
 }
 
 async function runScan(siteId) {
-  return new Promise((resolve, reject) => {
+  return new Promise(async (resolve, reject) => {
     db.get('SELECT url, standard FROM sites WHERE id = ?', [siteId], async (err, site) => {
       if (err || !site) {
         return reject(new Error('Site not found'));
@@ -33,14 +55,31 @@ async function runScan(siteId) {
 
       try {
         console.log(`Scanning: ${site.url} with standard ${site.standard}`);
-        const results = await pa11y(site.url, {
-          runners: ['axe'],
-          axe: {
+        
+        // Check for custom rules
+        const customRules = await getSiteRules(siteId);
+        let axeConfig = {};
+        
+        if (customRules.length > 0) {
+          const enabledRules = customRules.filter(r => r.enabled).map(r => r.rule_id);
+          axeConfig = {
+            runOnly: {
+              type: 'rule',
+              values: enabledRules
+            }
+          };
+        } else {
+          axeConfig = {
             runOnly: {
               type: 'tag',
               values: getAxeTags(site.standard || 'WCAG2AA')
             }
-          },
+          };
+        }
+
+        const results = await pa11y(site.url, {
+          runners: ['axe'],
+          axe: axeConfig,
           includeWarnings: true,
           includeNotices: true,
           chromeLaunchConfig: {
@@ -64,6 +103,9 @@ async function runScan(siteId) {
     });
   });
 }
+
+// Scheduled Scans ... (rest of the file)
+
 
 // Scheduled Scans (runs every hour to check what needs scanning)
 // For simplicity in this version, we'll check every minute if there's anything due
@@ -170,6 +212,64 @@ app.get('/api/scans/:site_id', (req, res) => {
       return res.status(500).json({ error: err.message });
     }
     res.json(rows);
+  });
+});
+
+// API: Get all available axe-core rules
+app.get('/api/rules', (req, res) => {
+  const rules = axe.getRules();
+  res.json(rules);
+});
+
+// API: Get custom rules for a site
+app.get('/api/sites/:id/rules', async (req, res) => {
+  try {
+    const rules = await getSiteRules(req.params.id);
+    res.json(rules);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// API: Update custom rules for a site
+app.post('/api/sites/:id/rules', (req, res) => {
+  const siteId = req.params.id;
+  const { rules } = req.body; // Array of { rule_id, enabled }
+
+  db.serialize(() => {
+    db.run('DELETE FROM site_rules WHERE site_id = ?', [siteId], (err) => {
+      if (err) return res.status(500).json({ error: err.message });
+
+      if (!rules || rules.length === 0) {
+        return res.json({ success: true, message: 'Custom rules cleared, using standard tags.' });
+      }
+
+      const stmt = db.prepare('INSERT INTO site_rules (site_id, rule_id, enabled) VALUES (?, ?, ?)');
+      rules.forEach(rule => {
+        stmt.run([siteId, rule.rule_id, rule.enabled ? 1 : 0]);
+      });
+      stmt.finalize((err) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json({ success: true });
+      });
+    });
+  });
+});
+
+// API: Delete a site
+app.delete('/api/sites/:id', (req, res) => {
+  const siteId = req.params.id;
+  // First delete scans (due to foreign key or just to be clean)
+  db.run('DELETE FROM scans WHERE site_id = ?', [siteId], (err) => {
+    if (err) {
+      return res.status(500).json({ error: err.message });
+    }
+    db.run('DELETE FROM sites WHERE id = ?', [siteId], function(err) {
+      if (err) {
+        return res.status(500).json({ error: err.message });
+      }
+      res.json({ success: true, deleted: this.changes });
+    });
   });
 });
 
