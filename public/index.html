@@ -88,7 +88,10 @@
 
         <section id="scan-results" aria-labelledby="results-heading" hidden>
             <h2 id="results-heading">Scan Results for <span id="current-site-name"></span></h2>
-            <button id="back-to-list">Back to List</button>
+            <div class="actions-bar" style="margin-bottom: 1rem; display: flex; gap: 1rem;">
+                <button id="back-to-list">Back to List</button>
+                <button id="export-csv">Export to CSV</button>
+            </div>
             <div id="results-summary"></div>
             <div class="chart-container">
                 <canvas id="history-chart"></canvas>

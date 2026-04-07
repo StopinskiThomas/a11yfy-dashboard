@@ -5,6 +5,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const scanResults = document.getElementById('scan-results');
     const monitoredSites = document.getElementById('monitored-sites');
     const backToList = document.getElementById('back-to-list');
+    const exportCsvBtn = document.getElementById('export-csv');
     const issuesList = document.getElementById('issues-list');
     const currentSiteName = document.getElementById('current-site-name');
     const resultsSummary = document.getElementById('results-summary');
@@ -20,6 +21,8 @@ document.addEventListener('DOMContentLoaded', () => {
     
     let currentConfigSiteId = null;
     let allAvailableRules = [];
+    let currentScanResults = null;
+    let currentSiteNameStr = '';
 
     // Fetch and display sites
     async function fetchSites() {
@@ -308,6 +311,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function viewResults(id, name) {
+        currentSiteNameStr = name;
         try {
             const response = await fetch(`/api/scans/${id}`);
             const scans = await response.json();
@@ -316,6 +320,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
             
+            currentScanResults = scans[0];
             renderChart(scans);
             renderHistoryTable(scans, name);
 
@@ -527,7 +532,33 @@ document.addEventListener('DOMContentLoaded', () => {
         scanResults.hidden = true;
         monitoredSites.hidden = false;
         document.getElementById('add-site').hidden = false;
+        currentScanResults = null;
         fetchSites();
+    });
+
+    exportCsvBtn.addEventListener('click', () => {
+        if (!currentScanResults) return;
+        const issues = JSON.parse(currentScanResults.issues_json);
+        const csvContent = [
+            ['Type', 'Message', 'Code', 'Selector', 'Context'],
+            ...issues.map(i => [
+                i.type || 'error',
+                i.message,
+                i.code,
+                i.selector,
+                i.context
+            ])
+        ].map(e => e.map(cell => `"${(cell || '').toString().replace(/"/g, '""')}"`).join(',')).join('\n');
+
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.setAttribute('href', url);
+        link.setAttribute('download', `a11y-report-${currentSiteNameStr.replace(/\s+/g, '-').toLowerCase()}-${new Date().toISOString().split('T')[0]}.csv`);
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
     });
 
     // Utilities
