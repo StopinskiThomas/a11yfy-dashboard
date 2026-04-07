@@ -5,25 +5,21 @@ const dbPath = path.resolve(__dirname, 'a11yfy.db');
 const db = new sqlite3.Database(dbPath);
 
 db.serialize(() => {
+  // Add 'standard' to sites
   db.all("PRAGMA table_info(sites)", [], (err, columns) => {
-    if (err) {
-      console.error(err);
-      process.exit(1);
-    }
+    if (err) return console.error(err);
     const hasStandard = columns.some(col => col.name === 'standard');
     if (!hasStandard) {
-      console.log('Adding "standard" column to "sites" table...');
-      db.run("ALTER TABLE sites ADD COLUMN standard TEXT DEFAULT 'WCAG2AA'", (err) => {
-        if (err) {
-          console.error('Error adding column:', err.message);
-        } else {
-          console.log('Column "standard" added successfully.');
-        }
-        process.exit(0);
-      });
-    } else {
-      console.log('Column "standard" already exists.');
-      process.exit(0);
+      db.run("ALTER TABLE sites ADD COLUMN standard TEXT DEFAULT 'WCAG2AA'");
+    }
+  });
+
+  // Add 'url' to scans
+  db.all("PRAGMA table_info(scans)", [], (err, columns) => {
+    if (err) return console.error(err);
+    const hasUrl = columns.some(col => col.name === 'url');
+    if (!hasUrl) {
+      db.run("ALTER TABLE scans ADD COLUMN url TEXT");
     }
   });
 });

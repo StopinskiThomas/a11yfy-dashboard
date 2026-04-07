@@ -19,6 +19,7 @@ const db = new sqlite3.Database(dbPath, (err) => {
       db.run(`CREATE TABLE IF NOT EXISTS scans (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         site_id INTEGER,
+        url TEXT,
         timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
         score INTEGER,
         issues_json TEXT,

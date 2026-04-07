@@ -91,10 +91,10 @@ async function runScan(siteId) {
         const score = Math.max(0, 100 - results.issues.length);
         const issuesJson = JSON.stringify(results.issues);
 
-        const sql = 'INSERT INTO scans (site_id, score, issues_json) VALUES (?, ?, ?)';
-        db.run(sql, [siteId, score, issuesJson], function(err) {
+        const sql = 'INSERT INTO scans (site_id, url, score, issues_json) VALUES (?, ?, ?, ?)';
+        db.run(sql, [siteId, results.pageUrl || site.url, score, issuesJson], function(err) {
           if (err) return reject(err);
-          resolve({ id: this.lastID, site_id: siteId, score, issues: results.issues });
+          resolve({ id: this.lastID, site_id: siteId, url: results.pageUrl || site.url, score, issues: results.issues });
         });
       } catch (scanErr) {
         console.error('Scan error:', scanErr);
@@ -193,15 +193,97 @@ app.patch('/api/sites/:id/standard', (req, res) => {
   });
 });
 
-// API: Run a scan
-app.post('/api/scan/:id', async (req, res) => {
+const puppeteer = require('puppeteer');
+
+async function crawlAndScan(siteId) {
+  return new Promise(async (resolve, reject) => {
+    db.get('SELECT url FROM sites WHERE id = ?', [siteId], async (err, site) => {
+      if (err || !site) return reject(new Error('Site not found'));
+
+      try {
+        console.log(`Crawling: ${site.url}`);
+        const browser = await puppeteer.launch({
+          args: ['--no-sandbox', '--disable-setuid-sandbox']
+        });
+        const page = await browser.newPage();
+        await page.goto(site.url, { waitUntil: 'networkidle2' });
+
+        const links = await page.evaluate(() => {
+          const baseUrl = window.location.origin;
+          return Array.from(document.querySelectorAll('a'))
+            .map(a => a.href)
+            .filter(href => href.startsWith(baseUrl)) // Internal only
+            .slice(0, 10); // Limit to 10 pages for now
+        });
+
+        await browser.close();
+
+        const uniqueLinks = [...new Set(links)];
+        console.log(`Found ${uniqueLinks.length} links to scan.`);
+
+        const results = [];
+        for (const link of uniqueLinks) {
+          try {
+            // Helper to run scan for a specific URL
+            const scanResult = await runScanForUrl(siteId, link);
+            results.push(scanResult);
+          } catch (e) {
+            console.error(`Failed to scan ${link}:`, e);
+          }
+        }
+        resolve(results);
+      } catch (e) {
+        reject(e);
+      }
+    });
+  });
+}
+
+async function runScanForUrl(siteId, url) {
+  return new Promise((resolve, reject) => {
+    db.get('SELECT standard FROM sites WHERE id = ?', [siteId], async (err, site) => {
+      if (err) return reject(err);
+      
+      try {
+        const customRules = await getSiteRules(siteId);
+        let axeConfig = {};
+        if (customRules.length > 0) {
+          axeConfig = { runOnly: { type: 'rule', values: customRules.filter(r => r.enabled).map(r => r.rule_id) } };
+        } else {
+          axeConfig = { runOnly: { type: 'tag', values: getAxeTags(site.standard || 'WCAG2AA') } };
+        }
+
+        const results = await pa11y(url, {
+          runners: ['axe'],
+          axe: axeConfig,
+          chromeLaunchConfig: { args: ['--no-sandbox', '--disable-setuid-sandbox'] }
+        });
+
+        const score = Math.max(0, 100 - results.issues.length);
+        const sql = 'INSERT INTO scans (site_id, url, score, issues_json) VALUES (?, ?, ?, ?)';
+        db.run(sql, [siteId, url, score, JSON.stringify(results.issues)], function(err) {
+          if (err) return reject(err);
+          resolve({ id: this.lastID, url, score });
+        });
+      } catch (e) {
+        reject(e);
+      }
+    });
+  });
+}
+
+// API: Run a crawl & scan
+app.post('/api/crawl/:id', async (req, res) => {
   try {
-    const results = await runScan(req.params.id);
-    res.json(results);
+    const results = await crawlAndScan(req.params.id);
+    res.json({ success: true, results });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
+
+// API: Run a scan ... (rest of the file)
+
 
 // API: Get scan history for a site
 app.get('/api/scans/:site_id', (req, res) => {

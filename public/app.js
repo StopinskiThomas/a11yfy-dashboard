@@ -66,7 +66,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 <td>${scoreDisplay}</td>
                 <td>${site.latest_scan ? new Date(site.latest_scan).toLocaleString() : 'Never'}</td>
                 <td>
-                    <button class="scan-btn" data-id="${site.id}">Scan Now</button>
+                    <button class="scan-btn" data-id="${site.id}">Scan Page</button>
+                    <button class="crawl-btn" data-id="${site.id}" title="Find and scan multiple pages">Crawl Site</button>
                     <button class="view-btn" data-id="${site.id}" data-name="${site.name}">View Results</button>
                     <button class="config-btn" data-id="${site.id}" data-name="${site.name}">Configure Rules</button>
                     <button class="delete-btn" data-id="${site.id}" data-name="${site.name}">Delete</button>
@@ -78,6 +79,9 @@ document.addEventListener('DOMContentLoaded', () => {
         // Add event listeners
         document.querySelectorAll('.scan-btn').forEach(btn => {
             btn.addEventListener('click', () => runScan(btn.dataset.id));
+        });
+        document.querySelectorAll('.crawl-btn').forEach(btn => {
+            btn.addEventListener('click', () => runCrawl(btn.dataset.id));
         });
         document.querySelectorAll('.view-btn').forEach(btn => {
             btn.addEventListener('click', () => viewResults(btn.dataset.id, btn.dataset.name));
@@ -310,6 +314,23 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    async function runCrawl(id) {
+        updateStatus('Crawling and scanning site... this may take a while.', 'info');
+        try {
+            const response = await fetch(`/api/crawl/${id}`, { method: 'POST' });
+            if (response.ok) {
+                const data = await response.json();
+                updateStatus(`Crawl complete. Scanned ${data.results.length} pages.`, 'success');
+                fetchSites();
+            } else {
+                const err = await response.json();
+                updateStatus('Crawl failed: ' + err.error, 'error');
+            }
+        } catch (error) {
+            updateStatus('Error running crawl: ' + error.message, 'error');
+        }
+    }
+
     async function viewResults(id, name) {
         currentSiteNameStr = name;
         try {
@@ -367,6 +388,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <p><strong>Warnings:</strong> ${counts.warning}</p>
                     <p><strong>Notices:</strong> ${counts.notice}</p>
                 </div>
+                <p><strong>URL:</strong> <a href="${latestScan.url}" target="_blank">${latestScan.url}</a></p>
                 <p><strong>Scan Date:</strong> ${new Date(latestScan.timestamp).toLocaleString()}</p>
                 ${diffHtml}
             `;
@@ -540,8 +562,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!currentScanResults) return;
         const issues = JSON.parse(currentScanResults.issues_json);
         const csvContent = [
-            ['Type', 'Message', 'Code', 'Selector', 'Context'],
+            ['URL', 'Type', 'Message', 'Code', 'Selector', 'Context'],
             ...issues.map(i => [
+                currentScanResults.url,
                 i.type || 'error',
                 i.message,
                 i.code,
